@@ -7,8 +7,8 @@ description = "High-performance zero-copy quaternary stream library packing 2 bi
 readme = "README.md"                   
 repository = "https://github.com/strahinjastojanovic826-code/quat_input" 
 license = "AGPL-3.0-or-later"          
-keywords = ["quaternary", "zero-copy", "ffi", "packing", "no-std"] 
-categories = ["data-structures", "no-std", "ffi"]
+keywords = ["quaternary", "zero-copy", "ffi", "packing"] 
+categories = ["data-structures", "ffi"]
 
 [lib]
 name = "quat_input"
