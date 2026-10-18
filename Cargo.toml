@@ -1,0 +1,17 @@
+[package]
+name = "quat_input"
+version = "0.1.0"
+edition = "2024"
+authors = ["Strale <strahinjastojanovic826@gmail.com>"]
+description = "High-performance zero-copy quaternary stream library packing 2 bits per quat with FFI support."
+readme = "README.md"                   
+repository = "https://github.com/vaše-korisničko-ime/quat_input" 
+license = "AGPL-3.0-or-later"          
+keywords = ["quaternary", "zero-copy", "ffi", "packing", "no-std"] 
+categories = ["data-structures", "no-std", "ffi"]
+
+[lib]
+name = "quat_input"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
