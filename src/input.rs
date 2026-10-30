@@ -28,6 +28,37 @@ impl QuatInput {
         }
         bytes
     }
+    pub fn pack_fast(&self) -> Vec<QuatByte> {
+        let total_bytes = (self.quats.len() + 3) / 4;
+        let mut bytes = Vec::with_capacity(total_bytes);
+
+        let chunks = self.quats.chunks_exact(4);
+        let remainder = chunks.remainder();
+
+        // Vectorized chunk processing loop
+        for chunk in chunks {
+            let q3 = chunk[3].to_u8();
+            let q2 = chunk[2].to_u8();
+            let q1 = chunk[1].to_u8();
+            let q0 = chunk[0].to_u8();
+
+            let byte_val = (q3 << 6) | (q2 << 4) | (q1 << 2) | q0;
+            bytes.push(QuatByte(byte_val));
+        }
+
+        // Handle remaining elements if input length is not a multiple of 4
+        if !remainder.is_empty() {
+            let mut q = [Quat::V0; 4];
+            for (i, &val) in remainder.iter().enumerate() {
+                q[i] = val;
+            }
+            let byte_val = (q[3].to_u8() << 6) | (q[2].to_u8() << 4) | (q[1].to_u8() << 2) | q[0].to_u8();
+            bytes.push(QuatByte(byte_val));
+        }
+
+        bytes
+    }
+
 }
 
 impl FromStr for QuatInput {

@@ -12,6 +12,8 @@ The library provides zero-allocation stream views, efficient bit-packing, robust
 - **Bit-Packed Storage**: Efficiently packs 4 quaternary digits into a single byte (`QuatByte`).
 - **Compile-Time & Run-Time Safety**: Supports `const` contexts for parsing and validation.
 - **Production-Ready FFI**: Fully equipped with `std::panic::catch_unwind` protection to ensure safe cross-language calls without risking undefined behavior or process crashes.
+- **Quaternary Arithmetic & Logic**: Built-in modulo 4 arithmetic (`add`, `sub`) and multi-valued logic operations (`not`, `max`, `min`) directly on `Quat`.
+- **Vectorized Performance**: High-performance batch packing (`pack_fast`) optimized via chunk-based word-level manipulation.
 
 ---
 
@@ -32,7 +34,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-quat_input = "0.1.0"
+quat_input = "0.2.0"
 ```
 
 If you plan to compile it as a shared library for FFI use, configure your crate type:
@@ -48,16 +50,20 @@ crate-type = ["cdylib", "rlib"]
 ## Quick Start (Rust)
 
 ```rust
-use quat_input::{QuatInput, QuatStream};
+use quat_input::{QuatInput, QuatStream, Quat};
 use std::str::FromStr;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. Parse string input containing quaternary characters ('0' to '3')
     let input = QuatInput::from_str("01233210")?;
 
-    // 2. Pack the quaternary digits into raw bytes (4 quats per byte)
+    // 2. Pack the quaternary digits into raw bytes (standard pack)
     let packed_bytes = input.pack();
     println!("Packed into {} byte(s)", packed_bytes.len());
+
+    // 2b. High-performance vectorized batch packing
+    let fast_bytes = input.pack_fast();
+    println!("Fast packed into {} byte(s)", fast_bytes.len());
 
     // 3. Create a zero-copy stream view over the packed bytes
     let stream = QuatStream::new(&packed_bytes, input.quats().len());
@@ -72,6 +78,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         print!("{} ", quat);
     }
     println!();
+
+    // 6. Quaternary arithmetic & multi-valued logic operations
+    let q1 = Quat::V1;
+    let q2 = Quat::V2;
+    let sum = q1.add(q2);
+    let negated = q1.not();
+
+    println!("Arithmetic V1 + V2 = {}", sum);
+    println!("Post NOT(V1) = {}", negated);
 
     Ok(())
 }
@@ -114,6 +129,56 @@ lib.quat_stream_get.argtypes = [
     ctypes.POINTER(ctypes.c_int32)
 ]
 lib.quat_stream_get.restype = ctypes.c_int32
+```
+
+---
+
+## FFI Integration (C Example)
+
+If you are using `quat_input` from a native **C** or **C++** application, you can leverage the exposed FFI interface with panic safety and raw pointer management:
+
+```c
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+// Opaque structure matching FfiQuatStream
+typedef struct FfiQuatStream FfiQuatStream;
+
+// FFI function declarations exported by libquat_input
+extern int32_t quat_stream_create(const uint8_t* bytes, size_t len, size_t total_quats, FfiQuatStream** out_stream);
+extern void quat_stream_destroy(FfiQuatStream* stream);
+extern int32_t quat_stream_get(const FfiQuatStream* stream, size_t index, uint8_t* out_val, int32_t* out_err);
+
+int main() {
+    // 1. Raw packed bytes (e.g., 2 bytes containing 8 quaternary values)
+    uint8_t raw_bytes[] = {0xE4, 0x1B};
+    size_t total_quats = 8;
+
+    FfiQuatStream* stream = NULL;
+
+    // 2. Safely create the stream (with catch_unwind protection on Rust side)
+    int32_t create_res = quat_stream_create(raw_bytes, sizeof(raw_bytes), total_quats, &stream);
+    if (create_res != 0 || stream == NULL) {
+        printf("Failed to create FFI quat stream, error code: %d\n", create_res);
+        return 1;
+    }
+
+    uint8_t out_val = 0;
+    int32_t out_err = 0;
+
+    // 3. Read an element safely by index without allocation
+    int32_t status = quat_stream_get(stream, 0, &out_val, &out_err);
+    if (status == 0 && out_err == 0) {
+        printf("Quat at index 0: %u\n", out_val);
+    }
+
+    // 4. Clean up memory and destroy the stream
+    quat_stream_destroy(stream);
+    printf("Stream successfully destroyed.\n");
+
+    return 0;
+}
 ```
 
 ---

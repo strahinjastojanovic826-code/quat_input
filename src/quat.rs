@@ -30,6 +30,49 @@ impl Quat {
             _ => Err(QuatError::InvalidChar(c)),
         }
     }
+    pub const fn add(self, other: Self) -> Self {
+        let val = (self.to_u8() + other.to_u8()) % 4;
+        match Self::from_u8_const(val) {
+            Ok(q) => q,
+            Err(_) => Self::V0,
+        }
+    }
+
+    /// Quaternary subtraction modulo 4 (V_a - V_b mod 4)
+    pub const fn sub(self, other: Self) -> Self {
+        let val = (self.to_u8() + 4 - other.to_u8()) % 4;
+        match Self::from_u8_const(val) {
+            Ok(q) => q,
+            Err(_) => Self::V0,
+        }
+    }
+
+    /// Quaternary Post negation (NOT operation: 3 - x)
+    pub const fn not(self) -> Self {
+        let val = 3 - self.to_u8();
+        match Self::from_u8_const(val) {
+            Ok(q) => q,
+            Err(_) => Self::V0,
+        }
+    }
+
+    /// Quaternary Maximum (Equivalent to OR in multi-valued logic)
+    pub const fn max(self, other: Self) -> Self {
+        if self.to_u8() > other.to_u8() {
+            self
+        } else {
+            other
+        }
+    }
+
+    /// Quaternary Minimum (Equivalent to AND in multi-valued logic)
+    pub const fn min(self, other: Self) -> Self {
+        if self.to_u8() < other.to_u8() {
+            self
+        } else {
+            other
+        }
+    }
 
     #[inline]
     pub const fn to_u8(self) -> u8 {

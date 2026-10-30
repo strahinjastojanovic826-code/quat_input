@@ -185,4 +185,40 @@ mod tests {
             quat_stream_destroy(stream_ptr);
         }
     }
+    #[test]
+fn test_12_quat_arithmetic_and_logic() {
+    // Test quaternary arithmetic modulo 4
+    let q1 = Quat::V1; // 1
+    let q2 = Quat::V2; // 2
+    let q3 = Quat::V3; // 3
+
+    // Addition: V1 + V2 = V3 (1 + 2 = 3)
+    assert_eq!(q1.add(q2), Quat::V3);
+    // Modulo wrap-around: V2 + V3 = V1 (2 + 3 = 5 -> 1 mod 4)
+    assert_eq!(q2.add(q3), Quat::V1);
+
+    // Subtraction: V3 - V2 = V1 (3 - 2 = 1)
+    assert_eq!(q3.sub(q2), Quat::V1);
+
+    // Post negation: NOT(V1) = V2 (3 - 1 = 2)
+    assert_eq!(q1.not(), Quat::V2);
+    assert_eq!(Quat::V0.not(), Quat::V3);
+
+    // Max and Min operations (Multi-valued logic equivalent to OR/AND)
+    assert_eq!(q1.max(q3), Quat::V3);
+    assert_eq!(q1.min(q3), Quat::V1);
+}
+
+#[test]
+fn test_13_pack_fast_equivalence() {
+    // Test if fast vectorized packing yields identical results to standard pack
+    let input = QuatInput::from_str("012332100123").unwrap();
+    
+    let standard_bytes = input.pack();
+    let fast_bytes = input.pack_fast();
+
+    assert_eq!(standard_bytes, fast_bytes);
+    assert_eq!(fast_bytes.len(), 3);
+}
+
 }
