@@ -14,6 +14,32 @@ The library provides zero-allocation stream views, efficient bit-packing, robust
 - **Production-Ready FFI**: Fully equipped with `std::panic::catch_unwind` protection to ensure safe cross-language calls without risking undefined behavior or process crashes.
 - **Quaternary Arithmetic & Logic**: Built-in modulo 4 arithmetic (`add`, `sub`) and multi-valued logic operations (`not`, `max`, `min`) directly on `Quat`.
 - **Vectorized Performance**: High-performance batch packing (`pack_fast`) optimized via chunk-based word-level manipulation.
+- **SIMD-Optimized Batch Packing**: High-performance batch processing designed for hardware acceleration and auto-vectorization.
+- **NAND Flash Memory Simulation**: Built-in support for structured quaternary page and block management mimicking modern memory chips.
+- **Digital Signal Processing (DSP)**: QPSK phase symbol modulation mapping quaternary logic directly to telecommunication signals.
+
+---
+
+## Benchmark Performance Results
+
+| Test Name / Component | Workload Description | Execution Time |
+| :--- | :--- | :--- |
+| `test_01_single_quat_parse` | Single character parsing | 4.9 µs |
+| `test_02_quat_input_from_str` | Basic string parsing into `QuatInput` | 20.8 µs |
+| `test_03_quat_byte_packing` | Packing 4 quats into a single byte | 7.7 µs |
+| `test_04_quat_stream_get` | Zero-allocation index lookup | 700 ns |
+| `test_05_quat_stream_iterator` | Zero-allocation stream iteration | 3.4 µs |
+| `test_06_error_invalid_char` | Error handling for invalid characters | 2.1 µs |
+| `test_07_error_index_out_of_bounds` | Boundary safety check (Index out of bounds) | 500 ns |
+| `test_08_const_functions` | Compile-time (`const`) evaluation | 100 ns |
+| `test_09_stress_empty_and_boundaries` | Edge cases & empty stream stress check | 1.9 µs |
+| `test_10_stress_large_stream` | Massive stream processing (16,000 quats) | 1.30 ms |
+| `test_11_stress_ffi_safety_and_panics` | FFI safety, pointer handling & panic catch | 6.1 µs |
+| `test_12_quat_arithmetic_and_logic` | Quaternary arithmetic & multi-valued logic | 500 ns |
+| `test_13_pack_fast_equivalence` | Fast vectorized packing verification | 2.9 µs |
+| `test_14_simd_packing_optimized` | SIMD-optimized pack (1,000 iterations) | 196.76 ms |
+| `test_15_dsp_modulation` | QPSK stream modulation (10,000 elements) | 172 µs |
+| `test_16_flash_page_creation` | NAND Flash page creation (1,000 iterations) | 1.20 ms |
 
 ---
 
@@ -34,7 +60,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-quat_input = "0.2.0"
+quat_input = "0.3.0"
 ```
 
 If you plan to compile it as a shared library for FFI use, configure your crate type:
@@ -88,8 +114,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Arithmetic V1 + V2 = {}", sum);
     println!("Post NOT(V1) = {}", negated);
 
+    // 7. Industrial Features: SIMD, DSP & Flash simulation
+    let _simd_bytes = input.pack_simd_optimized();
+    
+    let dsp_symbols = quat_input::dsp::modulate_stream(input.quats());
+    println!("DSP QPSK Phase for first quat: {} degrees", dsp_symbols[0].phase_degrees);
+
+    let flash_page = quat_input::flash::QuatFlashPage::new(1, &_simd_bytes).unwrap();
+    println!("NAND Flash Page ID: {}, Data size: {} bytes", flash_page.page_id, flash_page.data.len());
+
     Ok(())
-}
+} 
 ```
 
 ---
