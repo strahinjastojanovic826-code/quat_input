@@ -314,4 +314,181 @@ mod tests {
         println!("[BENCHMARK] QuatFlashPage creation (1000 iterations): {:?}", duration);
     }
 
+    #[test]
+    fn test_17_extended_unary_and_binary_quat_ops() {
+        let start = std::time::Instant::now();
+
+        assert_eq!(Quat::V0.inc_mod4(), Quat::V1);
+        assert_eq!(Quat::V3.inc_mod4(), Quat::V0);
+        assert_eq!(Quat::V0.dec_mod4(), Quat::V3);
+        assert_eq!(Quat::V1.rot2(), Quat::V3);
+
+        assert_eq!(
+            Quat::V2.threshold(Quat::V2, Quat::V0, Quat::V3),
+            Quat::V3
+        );
+        assert_eq!(
+            Quat::V1.window_literal(Quat::V1, Quat::V2, Quat::V3, Quat::V0),
+            Quat::V3
+        );
+
+        assert_eq!(Quat::V2.mul_mod4(Quat::V3), Quat::V2);
+        assert_eq!(Quat::V3.bit_and(Quat::V1), Quat::V1);
+        assert_eq!(Quat::V1.bit_or(Quat::V2), Quat::V3);
+        assert_eq!(Quat::V3.bit_xor(Quat::V1), Quat::V2);
+        assert_eq!(Quat::V0.implies(Quat::V1), Quat::V3);
+        assert_eq!(Quat::V3.xnor_bits(Quat::V3), Quat::V3);
+
+        for _ in 0..10_000 {
+            let _ = std::hint::black_box(Quat::V2.mul_mod4(Quat::V3).inc_mod4());
+        }
+
+        let duration = start.elapsed();
+        println!(
+            "[BENCHMARK] test_17_extended_unary_and_binary_quat_ops: {:?}",
+            duration
+        );
+    }
+
+    #[test]
+    fn test_18_zero_copy_streaming_and_pack_into() {
+        let start = std::time::Instant::now();
+
+        let quats = vec![Quat::V0, Quat::V1, Quat::V2, Quat::V3, Quat::V1];
+        let mut packed_buf = vec![0u8; 2];
+        let written = crate::input::QuatInput::pack_slice_into(&quats, &mut packed_buf).unwrap();
+        assert_eq!(written, 2);
+
+        let stream = crate::view::QuatStream::new(&packed_buf, quats.len());
+        let mut out_quats = vec![Quat::V0; quats.len()];
+        let unpacked = stream.unpack_into(&mut out_quats).unwrap();
+        assert_eq!(unpacked, quats.len());
+        assert_eq!(out_quats, quats);
+
+        let packed_chunks: Vec<QuatByte> = stream.packed_bytes().collect();
+        assert_eq!(packed_chunks.len(), 2);
+
+        for _ in 0..1000 {
+            let _ = std::hint::black_box(stream.unpack_into(&mut out_quats).unwrap());
+        }
+
+        let duration = start.elapsed();
+        println!(
+            "[BENCHMARK] test_18_zero_copy_streaming_and_pack_into: {:?}",
+            duration
+        );
+    }
+
+    #[test]
+    fn test_19_flash_page_integrity_and_block() {
+        let start = std::time::Instant::now();
+
+        let bytes = vec![QuatByte(0xE4); 4];
+        let mut page = crate::flash::QuatFlashPage::new_with_quat_len(1, &bytes, 14).unwrap();
+        assert_eq!(page.valid_quats, 14);
+        assert!(page.verify_integrity());
+
+        let mut block = crate::flash::QuatFlashBlock::new(0);
+        block.push_page(page.clone()).unwrap();
+        assert!(block.verify_all());
+
+        page.data[0] = QuatByte(0x00);
+        assert!(!page.verify_integrity());
+
+        for i in 0..1000 {
+            let p = crate::flash::QuatFlashPage::new_with_quat_len(i, &bytes, 14).unwrap();
+            let _ = std::hint::black_box(p.verify_integrity());
+        }
+
+        let duration = start.elapsed();
+        println!(
+            "[BENCHMARK] test_19_flash_page_integrity_and_block: {:?}",
+            duration
+        );
+    }
+
+    #[test]
+    fn test_20_dsp_gray_iq_modulation_and_demodulation() {
+        let start = std::time::Instant::now();
+
+        let input = vec![Quat::V0, Quat::V1, Quat::V2, Quat::V3];
+        for &q in &input {
+            assert_eq!(Quat::from_gray(q.to_gray()), q);
+        }
+
+        let iq_samples = crate::dsp::modulate_iq_stream(&input);
+        let demodulated = crate::dsp::demodulate_iq_stream(&iq_samples);
+        assert_eq!(demodulated, input);
+
+        let large = vec![Quat::V2; 10_000];
+        for _ in 0..100 {
+            let samples = crate::dsp::modulate_iq_stream(&large);
+            let _ = std::hint::black_box(crate::dsp::demodulate_iq_stream(&samples));
+        }
+
+        let duration = start.elapsed();
+        println!(
+            "[BENCHMARK] test_20_dsp_gray_iq_modulation_and_demodulation: {:?}",
+            duration
+        );
+    }
+
+    #[test]
+    fn test_21_ffi_pack_unpack_and_len() {
+        use crate::ffi::*;
+
+        let start = std::time::Instant::now();
+
+        let raw_quats: [u8; 6] = [0, 1, 2, 3, 1, 2];
+        let mut packed = [0u8; 4];
+        let mut written: usize = 0;
+        let mut unpacked: [u8; 6] = [0; 6];
+
+        unsafe {
+            let pack_status = quat_pack_buffer(
+                raw_quats.as_ptr(),
+                raw_quats.len(),
+                packed.as_mut_ptr(),
+                packed.len(),
+                &mut written,
+            );
+            assert_eq!(pack_status, FfiError::Ok as i32);
+            assert_eq!(written, 2);
+
+            let unpack_status = quat_unpack_buffer(
+                packed.as_ptr(),
+                written,
+                raw_quats.len(),
+                unpacked.as_mut_ptr(),
+                unpacked.len(),
+            );
+            assert_eq!(unpack_status, FfiError::Ok as i32);
+            assert_eq!(unpacked, raw_quats);
+
+            let mut stream_ptr: *mut FfiQuatStream = std::ptr::null_mut();
+            let create_res = quat_stream_create(packed.as_ptr(), written, 6, &mut stream_ptr);
+            assert_eq!(create_res, 0);
+            assert_eq!(quat_stream_len(stream_ptr), 6);
+            quat_stream_destroy(stream_ptr);
+        }
+
+        for _ in 0..1000 {
+            unsafe {
+                let _ = std::hint::black_box(quat_pack_buffer(
+                    raw_quats.as_ptr(),
+                    raw_quats.len(),
+                    packed.as_mut_ptr(),
+                    packed.len(),
+                    &mut written,
+                ));
+            }
+        }
+
+        let duration = start.elapsed();
+        println!(
+            "[BENCHMARK] test_21_ffi_pack_unpack_and_len: {:?}",
+            duration
+        );
+    }
+
 }

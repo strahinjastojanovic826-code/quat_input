@@ -1,5 +1,6 @@
 use crate::error::QuatError;
 use std::fmt;
+use std::ops::{Add, Sub, Mul, Not, BitAnd, BitOr, BitXor};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -78,6 +79,103 @@ impl Quat {
     pub const fn to_u8(self) -> u8 {
         self as u8
     }
+
+    /// Post negation: 3 - x (matches existing `not` semantics)
+    pub const fn post_neg(self) -> Self {
+        self.not()
+    }
+
+    /// Upward / cyclic shift by +1 modulo 4: (x + 1) mod 4
+    pub const fn inc_mod4(self) -> Self {
+        match Self::from_u8_const((self.to_u8() + 1) % 4) {
+            Ok(q) => q,
+            Err(_) => Self::V0,
+        }
+    }
+
+    /// Downward / cyclic shift by -1 modulo 4: (x + 3) mod 4
+    pub const fn dec_mod4(self) -> Self {
+        match Self::from_u8_const((self.to_u8() + 3) % 4) {
+            Ok(q) => q,
+            Err(_) => Self::V0,
+        }
+    }
+
+    /// Double cycle shift (+2 mod 4)
+    pub const fn rot2(self) -> Self {
+        match Self::from_u8_const((self.to_u8() + 2) % 4) {
+            Ok(q) => q,
+            Err(_) => Self::V0,
+        }
+    }
+
+    /// Threshold literal: returns `high` if `self >= threshold`, else `low`
+    pub const fn threshold(self, threshold: Self, low: Self, high: Self) -> Self {
+        if self.to_u8() >= threshold.to_u8() {
+            high
+        } else {
+            low
+        }
+    }
+
+    /// Unary literal / window selector: returns `inside` if `low <= self <= high`, else `outside`
+    pub const fn window_literal(self, low: Self, high: Self, inside: Self, outside: Self) -> Self {
+        let v = self.to_u8();
+        if v >= low.to_u8() && v <= high.to_u8() {
+            inside
+        } else {
+            outside
+        }
+    }
+
+    // --- Binary operators ---
+
+    /// Multiplication modulo 4: (a * b) mod 4
+    pub const fn mul_mod4(self, other: Self) -> Self {
+        let val = (self.to_u8() * other.to_u8()) % 4;
+        match Self::from_u8_const(val) {
+            Ok(q) => q,
+            Err(_) => Self::V0,
+        }
+    }
+
+    /// Bitwise 2-bit AND over underlying representation (00..=11)
+    pub const fn bit_and(self, other: Self) -> Self {
+        match Self::from_u8_const(self.to_u8() & other.to_u8()) {
+            Ok(q) => q,
+            Err(_) => Self::V0,
+        }
+    }
+
+    /// Bitwise 2-bit OR over underlying representation (00..=11)
+    pub const fn bit_or(self, other: Self) -> Self {
+        match Self::from_u8_const(self.to_u8() | other.to_u8()) {
+            Ok(q) => q,
+            Err(_) => Self::V0,
+        }
+    }
+
+    /// Bitwise 2-bit XOR over underlying representation (00..=11)
+    pub const fn bit_xor(self, other: Self) -> Self {
+        match Self::from_u8_const(self.to_u8() ^ other.to_u8()) {
+            Ok(q) => q,
+            Err(_) => Self::V0,
+        }
+    }
+
+    /// Quaternary implication (Zadeh / Kleene-style max over ~a and b): max(3 - a, b)
+    pub const fn implies(self, other: Self) -> Self {
+        self.not().max(other)
+    }
+
+    /// Quaternary equivalence / XNOR on 2-bit values: ~(a ^ b) & 0b11
+    pub const fn xnor_bits(self, other: Self) -> Self {
+        match Self::from_u8_const((!(self.to_u8() ^ other.to_u8())) & 0b11) {
+            Ok(q) => q,
+            Err(_) => Self::V0,
+        }
+    }
+    
 }
 
 impl TryFrom<u8> for Quat {
@@ -129,5 +227,61 @@ impl QuatByte {
         let shift = index * 2;
         let val = (self.0 >> shift) & 0b11;
         Quat::from_u8_const(val)
+    }
+}
+
+impl Add for Quat {
+    type Output = Self;
+    #[inline]
+    fn add(self, rhs: Self) -> Self::Output {
+        Quat::add(self, rhs)
+    }
+}
+
+impl Sub for Quat {
+    type Output = Self;
+    #[inline]
+    fn sub(self, rhs: Self) -> Self::Output {
+        Quat::sub(self, rhs)
+    }
+}
+
+impl Mul for Quat {
+    type Output = Self;
+    #[inline]
+    fn mul(self, rhs: Self) -> Self::Output {
+        self.mul_mod4(rhs)
+    }
+}
+
+impl Not for Quat {
+    type Output = Self;
+    #[inline]
+    fn not(self) -> Self::Output {
+        Quat::not(self)
+    }
+}
+
+impl BitAnd for Quat {
+    type Output = Self;
+    #[inline]
+    fn bitand(self, rhs: Self) -> Self::Output {
+        self.bit_and(rhs)
+    }
+}
+
+impl BitOr for Quat {
+    type Output = Self;
+    #[inline]
+    fn bitor(self, rhs: Self) -> Self::Output {
+        self.bit_or(rhs)
+    }
+}
+
+impl BitXor for Quat {
+    type Output = Self;
+    #[inline]
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        self.bit_xor(rhs)
     }
 }

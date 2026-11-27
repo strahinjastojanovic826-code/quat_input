@@ -44,6 +44,40 @@ impl<'a> QuatStream<'a> {
             current_index: 0,
         }
     }
+
+    /// Unpacks up to `out.len().min(self.total_quats)` quaternary symbols into a caller-provided buffer
+    /// without heap allocation. Returns the number of symbols written.
+    pub fn unpack_into(&self, out: &mut [Quat]) -> Result<usize, QuatError> {
+        let count = out.len().min(self.total_quats);
+        let full_bytes = count / 4;
+
+        if full_bytes > self.bytes.len() {
+            return Err(QuatError::IndexOutOfBounds(full_bytes * 4));
+        }
+
+        for (b_idx, &raw) in self.bytes[..full_bytes].iter().enumerate() {
+            let base = b_idx * 4;
+            out[base] = Quat::from_u8_const(raw & 0b11)?;
+            out[base + 1] = Quat::from_u8_const((raw >> 2) & 0b11)?;
+            out[base + 2] = Quat::from_u8_const((raw >> 4) & 0b11)?;
+            out[base + 3] = Quat::from_u8_const((raw >> 6) & 0b11)?;
+        }
+
+        for idx in (full_bytes * 4)..count {
+            out[idx] = self.get(idx)?;
+        }
+
+        Ok(count)
+    }
+
+    /// Iterates over packed `QuatByte` chunks directly from the underlying slice without copying.
+    #[inline]
+    pub fn packed_bytes(&self) -> impl Iterator<Item = QuatByte> + 'a {
+        let valid_bytes = (self.total_quats + 3) / 4;
+        let bound = valid_bytes.min(self.bytes.len());
+        self.bytes[..bound].iter().copied().map(QuatByte)
+    }
+    
 }
 
 pub struct QuatStreamIter<'a> {

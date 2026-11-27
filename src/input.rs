@@ -91,6 +91,46 @@ impl QuatInput {
         bytes
     }
 
+    /// Packs `self.quats` directly into a caller-provided byte slice without allocating.
+    /// Returns the number of bytes written, or `None` if `out` is too small.
+    pub fn pack_into(&self, out: &mut [u8]) -> Option<usize> {
+        Self::pack_slice_into(&self.quats, out)
+    }
+
+    /// Zero-allocation packing from any `&[Quat]` slice into an existing `&mut [u8]` buffer.
+    pub fn pack_slice_into(quats: &[Quat], out: &mut [u8]) -> Option<usize> {
+        let needed = (quats.len() + 3) / 4;
+        if out.len() < needed {
+            return None;
+        }
+
+        let mut chunks = quats.chunks_exact(4);
+        let mut out_idx = 0;
+
+        for chunk in &mut chunks {
+            out[out_idx] = (chunk[3].to_u8() << 6)
+                | (chunk[2].to_u8() << 4)
+                | (chunk[1].to_u8() << 2)
+                | chunk[0].to_u8();
+            out_idx += 1;
+        }
+
+        let rem = chunks.remainder();
+        if !rem.is_empty() {
+            let mut q = [Quat::V0; 4];
+            for (i, &val) in rem.iter().enumerate() {
+                q[i] = val;
+            }
+            out[out_idx] = (q[3].to_u8() << 6)
+                | (q[2].to_u8() << 4)
+                | (q[1].to_u8() << 2)
+                | q[0].to_u8();
+            out_idx += 1;
+        }
+
+        Some(out_idx)
+    }
+
 }
 
 impl FromStr for QuatInput {
